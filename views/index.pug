@@ -1,0 +1,164 @@
+doctype html
+html
+  head
+    title #{title}
+    style.
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        line-height: 1.5;
+      }
+      .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ccc;
+        border-top-color: #333;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-left: 8px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+  body
+    h1 #{title}
+    p This is the OAuth backend service.
+    p Domain: #{domain}
+    p Client Name: #{clientName}
+
+    h2 Login
+    div
+      input#handle(type="text" placeholder="Bluesky handle" style="padding:0.5rem; width: 60%; max-width:300px;")
+      button#loginButton(style="padding:0.5rem 1rem;") Login
+      span#loginSpinner.spinner(style="display:none;")
+
+    p#sessionInfo(style="margin-top:1rem;")
+
+    section#plonkSection(style="display:none; margin-top:2rem;")
+      h2 Your Plonks
+
+      h3 Create New Plonk
+      div(style="margin-bottom:1rem;")
+        input#plonkTitle(type="text" placeholder="Title" style="width:60%;max-width:300px;padding:0.5rem;")
+        select#plonkLang(style="padding:0.5rem;")
+          option(value="plaintext") plaintext
+          option(value="javascript") javascript
+          option(value="typescript") typescript
+          option(value="python") python
+          option(value="go") go
+      textarea#plonkCode(rows="10" style="width:100%;padding:0.5rem;")
+      button#plonkSubmit(style="padding:0.5rem 1rem;margin-top:0.5rem;") Post
+
+      div#plonkList(style="margin-top:2rem;")
+
+    script.
+      document.getElementById('loginButton').addEventListener('click', async () => {
+          const loginButton = document.getElementById('loginButton');
+          const spinner = document.getElementById('loginSpinner');
+          const handleInput = document.getElementById('handle');
+          const handle = handleInput.value.trim();
+          if (!handle) {
+              alert('Please enter your Bluesky handle');
+              handleInput.focus();
+              return;
+          }
+          // show spinner & disable button
+          spinner.style.display = 'inline-block';
+          loginButton.disabled = true;
+          try {
+              const res = await fetch('/api/auth/signin', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ handle })
+              });
+              if (!res.ok) throw new Error('Request failed');
+              const data = await res.json();
+              if (data.url) {
+                  window.location.href = data.url;
+              } else {
+                  alert('Unexpected response');
+              }
+          } catch (err) {
+              console.error(err);
+              alert('Signin failed');
+          } finally {
+              // hide spinner & re-enable button only if still on page
+              spinner.style.display = 'none';
+              loginButton.disabled = false;
+          }
+      });
+
+      async function loadPlonks() {
+          try {
+              const res = await fetch('/plonk/getPlonks');
+              if (!res.ok) throw new Error('Failed');
+              const data = await res.json();
+              const listEl = document.getElementById('plonkList');
+              listEl.innerHTML = '';
+              if (!data.records || data.records.length === 0) {
+                  listEl.textContent = 'No pastes yet.';
+                  return;
+              }
+              for (const rec of data.records) {
+                  const card = document.createElement('div');
+                  card.style.border = '1px solid #ccc';
+                  card.style.padding = '1rem';
+                  card.style.marginBottom = '1rem';
+
+                  const title = document.createElement('h3');
+                  title.textContent = rec.value?.title || 'Untitled';
+                  card.appendChild(title);
+
+                  const pre = document.createElement('pre');
+                  pre.textContent = rec.value?.code || '';
+                  card.appendChild(pre);
+
+                  listEl.appendChild(card);
+              }
+          } catch (err) {
+              console.error(err);
+          }
+      }
+
+      async function checkStatus() {
+          try {
+              const res = await fetch('/api/auth/status');
+              const data = await res.json();
+              const info = document.getElementById('sessionInfo');
+              const plonkSection = document.getElementById('plonkSection');
+              if (data.authenticated && data.user?.sub) {
+                  info.textContent = `Logged in as: ${data.user.sub}`;
+                  plonkSection.style.display = 'block';
+                  await loadPlonks();
+              } else {
+                  info.textContent = 'Not logged in';
+                  plonkSection.style.display = 'none';
+              }
+          } catch (err) {
+              console.error(err);
+          }
+      }
+
+      document.getElementById('plonkSubmit').addEventListener('click', async () => {
+          const title = document.getElementById('plonkTitle').value.trim();
+          const lang = document.getElementById('plonkLang').value;
+          const code = document.getElementById('plonkCode').value;
+          if (!code) { alert('Code required'); return; }
+          try {
+              const res = await fetch('/plonk/post', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ title, lang, code })
+              });
+              if (!res.ok) throw new Error('Post failed');
+              document.getElementById('plonkCode').value='';
+              await loadPlonks();
+          } catch(e){ console.error(e); alert('Failed to post'); }
+      });
+
+      // Run on page load
+      checkStatus(); 
