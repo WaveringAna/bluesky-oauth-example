@@ -1,6 +1,7 @@
 # flyctl launch added from .gitignore
 # dependencies (bun install)
 **/node_modules
+*.db
 
 # output
 **/out
