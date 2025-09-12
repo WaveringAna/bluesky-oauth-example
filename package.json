@@ -17,7 +17,7 @@
     "@atproto/jwk-jose": "^0.1.8",
     "@atproto/oauth-client-node": "^0.2.24",
     "handlebars": "^4.7.8",
-    "hono": "^4.7.11",
+    "hono": "^4.9.7",
     "pug": "^3.0.3"
   }
 }
